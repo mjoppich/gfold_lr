@@ -52,7 +52,7 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_cdf.h>
-#include "DataProcessor.hpp"
+#include "DataProcessor.h"
 
 using namespace std;
 

@@ -48,8 +48,8 @@
 #include <sstream>
 #include <map>
 #include <gsl/gsl_cdf.h>
-#include "Utility.hpp"
-#include "GeneInfo.hpp"
+#include "Utility.h"
+#include "GeneInfo.h"
 
 using namespace std;
 

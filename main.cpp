@@ -38,12 +38,12 @@
 #include <vector>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "GeneInfo.hpp"
-#include "GFOLD.hpp"
-#include "Utility.hpp"
+#include "GeneInfo.h"
+#include "GFOLD.h"
+#include "Utility.h"
 
-#define VERSION "V1.1.4"
-#define DATE "Sun May 24 07:42:36 CST 2015"
+#define VERSION "V1.0.0"
+#define DATE "November 2018"
 
 
 using namespace std;
@@ -53,10 +53,11 @@ Help()
 {
     cout << endl;
     cout << "      =============================================================================== " << endl;
-    cout << "          gfold    :   Generalized fold change for ranking differentially expressed   " << endl;
-    cout << "                       genes from RNA-seq data." << endl;
+    cout << "          gfold_lr  :   Generalized fold change for ranking differentially expressed   " << endl;
+    cout << "                       genes from RNA-seq data in long-read datasets." << endl;
     cout <<                                                     endl;
-    cout << "          Author   :   Jianxing Feng (jianxing.tongji@gmail.com)" << endl;
+    cout << "          Original Author   :   Jianxing Feng  (jianxing.tongji@gmail.com)" << endl;
+    cout << "          Long-Read Author  :   Markus Joppich (joppich@bio.ifi.lmu.de)" << endl;
     cout << "            Date   :   " << DATE << endl; 
     cout << "          Version  :   " << VERSION << endl;
     cout << "      =============================================================================== " << endl;
@@ -65,9 +66,9 @@ Help()
     cout << "               or open doc/gfold.html to find documentation." << endl;
     cout <<                                endl;
     cout << "      Quick Examples: " << endl;
-    cout << "               gfold count -ann hg19Ref.gtf -tag sample1.sam -o sample1.read_cnt          " << endl;
-    cout << "               gfold count -ann hg19Ref.gtf -tag sample2.sam -o sample2.read_cnt          " << endl;
-    cout << "               gfold diff -s1 sample1 -s2 sample2 -suf .read_cnt -o sample1VSsample2.diff " << endl;
+    cout << "               gfold_lr count -ann hg19Ref.gtf -tag sample1.sam -o sample1.read_cnt          " << endl;
+    cout << "               gfold_lr count -ann hg19Ref.gtf -tag sample2.sam -o sample2.read_cnt          " << endl;
+    cout << "               gfold_lr diff -s1 sample1 -s2 sample2 -suf .read_cnt -o sample1VSsample2.diff " << endl;
     cout <<                                endl;
 }
 
