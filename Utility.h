@@ -78,6 +78,8 @@
 #include <string>
 #include <vector>
 #include <stdlib.h>
+#include <fstream>
+#include <iostream>
 #include <cstdlib>
 #include <assert.h>
 #include <map>

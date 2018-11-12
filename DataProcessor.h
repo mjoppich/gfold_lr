@@ -575,6 +575,29 @@ void scanGPF(string from_file, GeneInfo& gene_info, int verbos_level = 0)
 } // scanGPF
 
 
+std::string extract_identifier_from_attribute(const std::string& sidentifier, const std::string& sattribs, std::string sdefault = "NA")
+{
+    string attribname = sdefault;
+    size_t start = sattribs.find(sidentifier);
+    if ((size_t)start != string::npos)
+    {
+        start += sidentifier.size()+1;
+
+        size_t startH = sattribs.find("\"", start);
+        size_t endH = sattribs.size();
+
+        if (startH != string::npos)
+        {
+            startH += 1;
+            endH = sattribs.find("\"", start+1);
+        }
+
+        attribname = sattribs.substr(startH, endH - startH);
+    }
+
+    return attribname;
+}
+
 /*
  * Scan gene annotation file in GTF and get needed information
  */
@@ -591,7 +614,12 @@ void scanGTF(string from_file, GeneInfo& gene_info, int verbos_level = 0)
     if (verbos_level > 0)
         cerr << "-VL1 Loading gene annotation from file " << from_file << " ..." << endl;
 
-    uint32 line_cnt = 0;
+    uint32_t line_cnt = 0;
+    uint32_t gene_cnt = 0;
+    uint32_t exon_cnt = 0;
+
+    std::set<std::string> geneNameSet;
+
     string line;
 
     while (getline(infile, line))
@@ -607,36 +635,90 @@ void scanGTF(string from_file, GeneInfo& gene_info, int verbos_level = 0)
         if (fields[2] != "exon")
             continue;
 
+        ++exon_cnt;
+
         die_input(from_file, line_cnt, "GTF", fields.size(), 9);
 
         //string& tran_id = fields[0];
         string& chr = fields[0];
         char strand = fields[6][0];
-        int start = fields[8].find("gene_id") + 9;
-        int end = fields[8].find("\"", start);
-        string gene_id = fields[8].substr(start, end - start); 
 
-        start = fields[8].find("transcript_id") + 15;
-        end = fields[8].find("\"", start);
-        string tran_id = fields[8].substr(start, end - start); 
+        string gene_id = extract_identifier_from_attribute("gene_id", fields[8], "NA");
+        string tran_id = extract_identifier_from_attribute("transcript_id", fields[8], "NA");
+        string gene_name = extract_identifier_from_attribute("gene_name", fields[8], "NA");
 
-        string gene_name = "NA";
-        start = fields[8].find("gene_name");
-        if ((size_t)start != string::npos)
+        std::set<std::string> idset;
+        idset.insert(gene_id);
+        idset.insert(tran_id);
+        idset.insert(gene_name);
+
+        std::set<std::string>::iterator oit = idset.find("NA");
+
+        if (oit != idset.end())
         {
-            start += 11;
-            end = fields[8].find("\"", start);
-            gene_name = fields[8].substr(start, end - start); 
+            idset.erase(oit);
         }
 
-        start = atoi(fields[3].data()) - 1;  // GTF start coordinates are 1-based
-        end = atoi(fields[4].data());   // GTF end coordinates are 1-based
+        switch (idset.size())
+        {
+            case 0:
+
+                break;
+
+            case 1:
+
+                if (gene_id != "NA")
+                {
+                    tran_id = gene_id;
+                    gene_name = gene_id;
+                } else if (tran_id != "NA")
+                {
+                    gene_id = tran_id;
+                    gene_name = tran_id;
+                } else if (gene_name != "NA")
+                {
+                    gene_id = gene_name;
+                    tran_id = gene_name;
+                }
+
+                break;
+
+            case 2:
+
+                if (gene_id == "NA")
+                {
+                    gene_id = tran_id;
+                } else if (tran_id == "NA")
+                {
+                    tran_id = gene_id;
+                } else if (gene_name == "NA")
+                {
+                    gene_name = gene_id;
+                }
+
+                break;
+
+            default:
+                // do nothing
+                break;
+
+        }
+
+
+        std::cerr << gene_id << " " << tran_id << " " << gene_name << std::endl;
+        geneNameSet.insert(tran_id);
+
+        int start = atoi(fields[3].data()) - 1;  // GTF start coordinates are 1-based
+        int end = atoi(fields[4].data());   // GTF end coordinates are 1-based
         gene_info.OnAnExon(chr, strand, gene_id, gene_name, tran_id, start, end);
     }
     gene_info.FinishLoadingExons();
 
-    if (verbos_level > 0)
-        cerr << "-VL1 " << line_cnt << " lines have been scanned" << endl;
+    if (verbos_level > 0) {
+        cerr << "-VL1 " << line_cnt << " gtf lines have been scanned" << endl;
+        cerr << "-VL1 " << exon_cnt << " exon lines have been scanned" << endl;
+        cerr << "-VL1 " << geneNameSet.size() << " gene names were found" << endl;
+    }
 
     infile.close();
 } // scanGTF

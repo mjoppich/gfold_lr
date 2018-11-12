@@ -42,7 +42,10 @@
 #include <list>
 #include <set>
 #include <assert.h>
+#include <fstream>
+#include <iostream>
 #include "Utility.h"
+#include "CIGARreader.h"
 
 using namespace std;
 
@@ -254,14 +257,22 @@ public:
     
     int mSenseReadCount;
     int mAntiSenseReadCount;
+    int mReadCount;
 
-    GeneInfo(string output_rawinfo, int flank_len, bool b_strand_specific, bool b_count_junc = true, int verbos_level = 2)
+    typedef enum {
+        matches
+    } COUNT_METHOD;
+
+    COUNT_METHOD mCountMethod;
+
+    GeneInfo(string output_rawinfo, int flank_len, bool b_strand_specific, GeneInfo::COUNT_METHOD oMethod = GeneInfo::matches, bool b_count_junc = true, int verbos_level = 2)
     {
         mOutputFile = output_rawinfo;
         mFlankLen = flank_len;
         mbStrandSpecific = b_strand_specific;
         mbCountJunc = b_count_junc;
         mVerbosLevel = verbos_level;
+        mCountMethod = oMethod;
     }
 
     ~GeneInfo()
@@ -543,14 +554,31 @@ public:
     {
         mSenseReadCount = 0;
         mAntiSenseReadCount = 0;
+        mReadCount = 0;
     }
 
     /* Call this function after gene annotation has been loaded */
     // Assuming that start position is 0-based, which is different from SAM format
     void OnAShortRead(string chr, int start, int flag, int read_len, const string& match_string)
     {
+
+        switch (mCountMethod)
+        {
+            case GeneInfo::matches:
+                countMatches(chr, start, flag, read_len, match_string);
+                break;
+
+            default:
+                countMatches(chr, start, flag, read_len, match_string);
+        }
+
+        
+    } // OnAShortRead
+
+
+    void countMatches(string chr, int start, int flag, int read_len, const string& match_string)
+    {
         bool b_positive = !(flag & 16);
-        bool b_junc = (match_string.find('N') != string::npos);
 
         char strand = '-';
         if (b_positive)
@@ -558,51 +586,70 @@ public:
         if (mbStrandSpecific)
             chr += strand;
 
-        if (b_junc && mbCountJunc)
-        {
-            IntervalTree& tree = mJunctionTree[chr];
-            vector<Interval*> overlapping;
-            tree.Find(start, overlapping);
+        mReadCount += 1;
 
-            size_t M_pos = match_string.find_first_of('M');
-            size_t N_pos = match_string.find_first_of('N');
-            string ts = match_string.substr(M_pos + 1, N_pos - M_pos - 1);
-            int gap_len = atoi(ts.data());
-            for (size_t i = 0; i < overlapping.size(); ++i)
+        std::vector<CIGAR> allCIGARs = CIGAR::read_cigars(match_string, (uint64_t) start);
+
+        for (size_t i = 0; i < allCIGARs.size(); ++i)
+        {
+            CIGAR oCIGAR = allCIGARs.at(i);
+
+            bool b_junc = CIGAR::skipped_region == oCIGAR.type;
+
+            uint64_t iCIGARStart = oCIGAR.qstart;
+
+            if (b_junc && mbCountJunc)
             {
-                ExtraInfo& extra = *((ExtraInfo*)(overlapping[i]->mpData));
-                if (overlapping[i]->mEnd + gap_len == extra.mSecondPart)
+                IntervalTree& tree = mJunctionTree[chr];
+                vector<Interval*> overlapping;
+                tree.Find(iCIGARStart, overlapping);
+
+                //size_t M_pos = match_string.find_first_of('M');
+                //size_t N_pos = match_string.find_first_of('N');
+                //string ts = match_string.substr(M_pos + 1, N_pos - M_pos - 1);
+
+                int gap_len = oCIGAR.length;
+                for (size_t i = 0; i < overlapping.size(); ++i)
                 {
-                    if (start - overlapping[i]->mStart >= 2 * mFlankLen)
-                        cerr << "WARNING: Flank length for a junction is too short, please set a value at least " << (start - overlapping[i]->mStart + 1) / 2 << endl;
-                    extra.mMapPos.push_back(start - overlapping[i]->mStart);   
-                    extra.mMapFlag.push_back(flag);
+                    ExtraInfo& extra = *((ExtraInfo*)(overlapping[i]->mpData));
+                    if (overlapping[i]->mEnd + gap_len == extra.mSecondPart)
+                    {
+                        if (start - overlapping[i]->mStart >= 2 * mFlankLen)
+                            cerr << "WARNING: Flank length for a junction is too short, please set a value at least " << (start - overlapping[i]->mStart + 1) / 2 << endl;
+                        extra.mMapPos.push_back(start - overlapping[i]->mStart);
+                        extra.mMapFlag.push_back(flag);
+                    }
                 }
-            } 
-        }
-        else
-        {
-            if (!b_positive) 
-                start += read_len - 1;
-
-            IntervalTree& tree = mSegmentTree[chr];
-            vector<Interval*> overlapping;
-            tree.Find(start, overlapping);
-
-            for (size_t i = 0; i < overlapping.size(); ++i)
+            }
+            else
             {
-                ExtraInfo& extra = *((ExtraInfo*)(overlapping[i]->mpData));
-                extra.mCount++;
-                if (strand == ((*extra.mGenes.begin())->mStrand))
-                    mSenseReadCount++;
-                else
-                    mAntiSenseReadCount++;
-                //extra.mMapPos.push_back(start - overlapping[i]->mStart);
-                //extra.mMapFlag.push_back(flag);
+                //if (!b_positive)
+                //    start += read_len - 1;
+
+                // since this tool assigns matching region to region where match starts (stranded)...
+                if (!b_positive)
+                    iCIGARStart += oCIGAR.length-1;
+
+                // loocks up positions in itree and counts
+                IntervalTree& tree = mSegmentTree[chr];
+                vector<Interval*> overlapping;
+                tree.Find(iCIGARStart, overlapping);
+
+                for (size_t i = 0; i < overlapping.size(); ++i)
+                {
+                    ExtraInfo& extra = *((ExtraInfo*)(overlapping[i]->mpData));
+                    extra.mCount++;
+                    if (strand == ((*extra.mGenes.begin())->mStrand))
+                        mSenseReadCount++;
+                    else
+                        mAntiSenseReadCount++;
+                    //extra.mMapPos.push_back(start - overlapping[i]->mStart);
+                    //extra.mMapFlag.push_back(flag);
+                }
             }
         }
-        
-    } // OnAShortRead
+
+    }
 
     void FinishLoadingReads()
     {
@@ -612,8 +659,9 @@ public:
 
         if (mVerbosLevel > 0)
         {
-            cerr << "-VL1 " << mSenseReadCount << " sense reads have been counted." << endl;
-            cerr << "-VL1 " << mAntiSenseReadCount << " anti-sense reads have been counted." << endl;
+            cerr << "-VL1 " << mReadCount << " reads have been counted." << endl;
+            cerr << "-VL1 " << mSenseReadCount << " sense matches have been counted." << endl;
+            cerr << "-VL1 " << mAntiSenseReadCount << " anti-sense matches have been counted." << endl;
         }
     } // FinishLoadingReads
 
@@ -793,6 +841,8 @@ public:
         str2int_t gene_length;
         map<string, string> symble2name;
 
+        std::cerr << gene_cnt.size() << " " << gene_length.size() << std::endl;
+
         // Note that no need to collect information from mAllJunctions if mbCountJunc is not set
         assert(!mbCountJunc);
         for_each_ele_in_group(iter, map_str2list_inter_t, mAllSegments)
@@ -831,6 +881,8 @@ public:
         for_each_ele_in_group(iter, str2int_t, gene_cnt)
             seq_depth += iter->second;
         seq_depth /= 1000000;
+
+        std::cerr << gene_cnt.size() << " " << gene_length.size() << std::endl;
 
         for_each_ele_in_group(iter, str2int_t, gene_cnt)
             output << iter->first << "\t" 

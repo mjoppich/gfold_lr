@@ -125,6 +125,8 @@ main(int argc, char* argv[])
     vector<string> second_group_samples;
     string normal_method = "DESeq";
 
+    string smethod = "matches";
+
     // Begin parsing the jobs and parameters
     for (int i = startArg; i < argc; i++)
     {
@@ -150,6 +152,8 @@ main(int argc, char* argv[])
             genedesc = argv[++i];
         else if (strcmp(argv[i], "-o") == 0)
             output_file = argv[++i];
+        else if (strcmp(argv[i], "-m") == 0)
+            smethod = argv[++i];
         else if (strcmp(argv[i], "-suf") == 0)
             sample_suffix = argv[++i];
         else if (strcmp(argv[i], "-s") == 0)
@@ -190,7 +194,14 @@ main(int argc, char* argv[])
     }
 
     die_arg_missing(job == "", "Job"); 
-    die_arg_missing(output_file == "", "-o"); 
+    die_arg_missing(output_file == "", "-o");
+
+    GeneInfo::COUNT_METHOD oMethod = GeneInfo::matches;
+
+    if (smethod == "matches")
+    {
+        oMethod = GeneInfo::matches;
+    }
 
     if (job == "count")
     {
@@ -199,7 +210,7 @@ main(int argc, char* argv[])
         die_arg_wrong(gene_annotation_format != "GPF" && gene_annotation_format != "BED" && gene_annotation_format != "GTF", "-annf");
         die_arg_wrong(short_reads_format != "SAM" && short_reads_format != "BED", "-tagf");
 
-        GeneInfo gene_info(output_file, 1, strand_specific_code == 1, false, verbos_level);
+        GeneInfo gene_info(output_file, 1, strand_specific_code == 1, oMethod, false, verbos_level);
         if (gene_annotation_format == "GPF")
             scanGPF(gene_annotation, gene_info, verbos_level);
         else if (gene_annotation_format == "BED")
