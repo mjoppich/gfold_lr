@@ -557,10 +557,28 @@ public:
         mReadCount = 0;
     }
 
-    /* Call this function after gene annotation has been loaded */
-    // Assuming that start position is 0-based, which is different from SAM format
+
+    /**
+     *
+     * Call this function after gene annotation has been loaded
+     * Assuming that start position is 0-based, which is different from SAM format
+     *
+     * @authors original author (feeldead), mjoppich
+     *
+     * @param chr chromosome
+     * @param start start position
+     * @param flag flags
+     * @param read_len read-length
+     * @param match_string cigar string
+     */
     void OnAShortRead(string chr, int start, int flag, int read_len, const string& match_string)
     {
+
+        if (read_len < 200)
+        {
+            countShortRead(chr, start, flag, read_len, match_string);
+            return;
+        }
 
         switch (mCountMethod)
         {
@@ -576,6 +594,87 @@ public:
     } // OnAShortRead
 
 
+    /**
+     *
+     * Original function in gfold
+     * This function may only be applied to SHORT!! reads!
+     *
+     * @authors feeldead, mjoppich
+     *
+     * @param chr chromosome
+     * @param start start position
+     * @param flag flags
+     * @param read_len read-length
+     * @param match_string cigar string
+     */
+    void countShortRead(string chr, int start, int flag, int read_len, const string& match_string)
+    {
+        bool b_positive = !(flag & 16);
+        bool b_junc = (match_string.find('N') != string::npos);
+
+        char strand = '-';
+        if (b_positive)
+            strand = '+';
+        if (mbStrandSpecific)
+            chr += strand;
+
+        if (b_junc && mbCountJunc)
+        {
+            IntervalTree& tree = mJunctionTree[chr];
+            vector<Interval*> overlapping;
+            tree.Find(start, overlapping);
+
+            size_t M_pos = match_string.find_first_of('M');
+            size_t N_pos = match_string.find_first_of('N');
+            string ts = match_string.substr(M_pos + 1, N_pos - M_pos - 1);
+            int gap_len = atoi(ts.data());
+            for (size_t i = 0; i < overlapping.size(); ++i)
+            {
+                ExtraInfo& extra = *((ExtraInfo*)(overlapping[i]->mpData));
+                if (overlapping[i]->mEnd + gap_len == extra.mSecondPart)
+                {
+                    if (start - overlapping[i]->mStart >= 2 * mFlankLen)
+                        cerr << "WARNING: Flank length for a junction is too short, please set a value at least " << (start - overlapping[i]->mStart + 1) / 2 << endl;
+                    extra.mMapPos.push_back(start - overlapping[i]->mStart);
+                    extra.mMapFlag.push_back(flag);
+                }
+            }
+        }
+        else
+        {
+            if (!b_positive)
+                start += read_len - 1;
+
+            IntervalTree& tree = mSegmentTree[chr];
+            vector<Interval*> overlapping;
+            tree.Find(start, overlapping);
+
+            for (size_t i = 0; i < overlapping.size(); ++i)
+            {
+                ExtraInfo& extra = *((ExtraInfo*)(overlapping[i]->mpData));
+                extra.mCount++;
+                if (strand == ((*extra.mGenes.begin())->mStrand))
+                    mSenseReadCount++;
+                else
+                    mAntiSenseReadCount++;
+                //extra.mMapPos.push_back(start - overlapping[i]->mStart);
+                //extra.mMapFlag.push_back(flag);
+            }
+        }
+    }
+
+    /**
+     *
+     * This function may only be applied to LONG reads!
+     *
+     * @authors mjoppich
+     *
+     * @param chr chromosome
+     * @param start start position
+     * @param flag flags
+     * @param read_len read-length
+     * @param match_string cigar string
+     */
     void countMatches(string chr, int start, int flag, int read_len, const string& match_string)
     {
         bool b_positive = !(flag & 16);

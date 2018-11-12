@@ -575,6 +575,19 @@ void scanGPF(string from_file, GeneInfo& gene_info, int verbos_level = 0)
 } // scanGPF
 
 
+/**
+ *
+ * extract identifier from attribute string
+ *
+ * "gene_name: "bla" " => bla
+ *
+ * @author mjoppich
+ *
+ * @param sidentifier identifier attribute to look for
+ * @param sattribs attribute string (9th column in gtf)
+ * @param sdefault default value to insert if identifier not found in sattribs
+ * @return
+ */
 std::string extract_identifier_from_attribute(const std::string& sidentifier, const std::string& sattribs, std::string sdefault = "NA")
 {
     string attribname = sdefault;
@@ -598,8 +611,15 @@ std::string extract_identifier_from_attribute(const std::string& sidentifier, co
     return attribname;
 }
 
-/*
+/**
+ *
  * Scan gene annotation file in GTF and get needed information
+ *
+ * some changes made by @mjoppich
+ *
+ * @param from_file input file
+ * @param gene_info gene_info object to store exons in
+ * @param verbos_level level of verbosity
  */
 void scanGTF(string from_file, GeneInfo& gene_info, int verbos_level = 0)
 {

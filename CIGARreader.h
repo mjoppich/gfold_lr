@@ -9,6 +9,12 @@
 #include <string>
 #include <inttypes.h>
 
+/**
+ * @author mjoppich
+ *
+ * class to parse CIGAR string from SAM file
+ *
+ */
 class CIGAR {
 public:
     typedef enum {
@@ -23,20 +29,30 @@ public:
         sequence_mismatch = 'X'  // NOT YET SUPPORTED
     } CIGAR_TYPE;
 
+    // type of operation
     CIGAR_TYPE type;
+    // length of operation
     uint32_t length;
+    // query position where operation starts (on read)
     uint64_t qstart;
+    // reference position where operation starts (on genome)
     uint64_t rstart;
 
-    static std::vector <CIGAR> read_cigars(std::string cigarSring, uint64_t lpos) {
+    /**
+     *
+     * @param cigarSring CIGAR string to transform into CIGAR elements
+     * @param lpos left-most position according to SAM file
+     * @return vector of CIGAR elements
+     */
+    static std::vector <CIGAR> read_cigars(std::string cigarString, uint64_t lpos) {
         std::vector <CIGAR> retCIGARS;
         std::string cur_len = "";
 
         uint64_t curQStart = lpos;
         uint64_t curRStart = lpos;
 
-        for(int i = 0; i < cigarSring.size(); i++) {
-            char &c = cigarSring[i];
+        for(int i = 0; i < cigarString.size(); i++) {
+            char &c = cigarString[i];
 
             // while we have numbers => add to cur_len
             if (std::isdigit(static_cast<unsigned char>(c))) {
